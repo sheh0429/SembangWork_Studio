@@ -1,0 +1,131 @@
+const chatInput = document.querySelector("#chat-input");
+const sendButton = document.querySelector("#send-btn");
+const chatContainer = document.querySelector(".chat-container");
+const themeButton = document.querySelector("#theme-btn");
+const deleteButton = document.querySelector("#delete-btn");
+
+let userText = null;
+const API_KEY = " "; // API key
+
+const loadDataFromLocalstorage = () => {
+    // Load saved chats and theme from local storage and apply/add on the page
+    const themeColor = localStorage.getItem("themeColor");
+
+    document.body.classList.toggle("light-mode", themeColor === "light_mode");
+    themeButton.innerText = document.body.classList.contains("light-mode") ? "dark_mode" : "light_mode";
+
+    const defaultText = `<div class="default-text">
+                            <h1>Sembang Chatbot</h1>
+                            <p>Start a conversation.<br> Your chat history will be displayed here.</p>
+                        </div>`
+
+    chatContainer.innerHTML = localStorage.getItem("all-chats") || defaultText;
+    chatContainer.scrollTo(0, chatContainer.scrollHeight); // Scroll to bottom of the chat container
+}
+
+const createChatElement = (content, className) => {
+    // Create new div and apply chat, specified class and set html content of div
+    const chatDiv = document.createElement("div");
+    chatDiv.classList.add("chat", className);
+    chatDiv.innerHTML = content;
+    return chatDiv; // Return the created chat div
+}
+const handleOutgoingChat = () => {
+    // Get the user entered message and remove extra whitespace
+    userText = chatInput.value.trim();
+    if(!userText) return;
+
+    // Clear the input textarea and set its height to default
+    chatInput.value = "";
+    chatInput.style.height = `${initialInputHeight}px`;
+
+    // Create an outgoing chat div with the user message and append it to chat container
+    const html = `<div class="chat-details">
+                    <img src="images/user.jpg" alt="user-img">
+                    <p>${userText}</p>
+                </div>`;
+    const outgoingChatDiv = createChatElement(html, "outgoing");
+    chatContainer.appendChild(outgoingChatDiv);
+    chatContainer.scrollTo(0, chatContainer.scrollHeight);
+    localStorage.setItem("all-chats", chatContainer.innerHTML); // Save the chats to local storage
+
+    setTimeout(() => {
+        handleIncomingChat();
+    }, 600);
+}
+
+const handleIncomingChat = () => {
+    // Send a POST request to the OpenAI API and get the response
+    const requestOptions = {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${API_KEY}`
+        },
+        body: JSON.stringify({
+            model: "gpt-3.5-turbo",
+            messages: [{role: "user", content: userText}],
+        })
+    }
+
+    fetch("https://api.openai.com/v1/chat/completions", requestOptions)
+   .then(res => res.json())
+   .then(data => {
+        const responseText = data.choices[0].message.content.trim();
+        const html = `<div class="chat-details">
+                        <img src="images/chatbot.jpg" alt="chatbot-img">
+                        <p>${responseText}</p>
+                    </div>`;
+        // Create an incoming chat div with the response and append it to chat container
+        const incomingChatDiv = createChatElement(html, "incoming");
+        chatContainer.appendChild(incomingChatDiv);
+        chatContainer.scrollTo(0, chatContainer.scrollHeight);
+        localStorage.setItem("all-chats", chatContainer.innerHTML); // Save the chats to local storage
+    })
+   .catch(() => {
+        // If API request fails, display an error message
+        const html = `<div class="chat-details">
+                        <img src="images/chatbot.jpg" alt="chatbot-img">
+                        <p>Oops! Something went wrong. Please try again.</p>
+                    </div>`;
+        // Create an incoming chat div with error message and append it to chat container
+        const incomingChatDiv = createChatElement(html, "incoming");
+        chatContainer.appendChild(incomingChatDiv);
+        chatContainer.scrollTo(0, chatContainer.scrollHeight);
+    });
+}
+
+deleteButton.addEventListener("click", () => {
+    // Remove the chats from local storage and call loadDataFromLocalstorage function
+    if(confirm("Are you sure you want to delete all the chats?")) {
+        localStorage.removeItem("all-chats");
+        loadDataFromLocalstorage();
+    }
+});
+
+themeButton.addEventListener("click", () => {
+    // Toggle body's class for the theme mode and save the updated theme to the local storage 
+    document.body.classList.toggle("light-mode");
+    localStorage.setItem("themeColor", themeButton.innerText);
+    themeButton.innerText = document.body.classList.contains("light-mode") ? "dark_mode" : "light_mode";
+});
+
+const initialInputHeight = chatInput.scrollHeight;
+
+chatInput.addEventListener("input", () => {   
+    // Adjust the height of the input field dynamically based on its content
+    chatInput.style.height =  `${initialInputHeight}px`;
+    chatInput.style.height = `${chatInput.scrollHeight}px`;
+});
+
+chatInput.addEventListener("keydown", (e) => {
+    // If the Enter key is pressed without Shift and the window width is larger 
+    // than 800 pixels, handle the outgoing chat
+    if (e.key === "Enter" && !e.shiftKey && window.innerWidth > 800) {
+        e.preventDefault();
+        handleOutgoingChat();
+    }
+});
+
+loadDataFromLocalstorage();
+sendButton.addEventListener("click", handleOutgoingChat);
